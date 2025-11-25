@@ -5,7 +5,7 @@
 ## Most of its made by ai i know some people dont like idgaf most of the current script are outdated and dont work soo yea i made my own with ai cus im like that
 
 ## Some problems with the script il maybe fix maybe not:
- when script gives a error like bad proxy it wont show the error and you need to copy and paste on another typer to know the error
+ when script gives a error like bad proxy it wont show the error and you need to copy and paste on another typer to know the error(i think i fixed ts)
  Some times on the tik tok checker a name might say its available but it aint when you try to change to it thats because the account was deleted
  (wait for the username to be available (name get locked for 30 days)) (ONLY FOR THE TIK TOK ONE I THINK)
 
