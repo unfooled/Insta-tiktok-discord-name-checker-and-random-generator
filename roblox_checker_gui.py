@@ -9,9 +9,10 @@ class Checker(QThread):
     pupdate = pyqtSignal(int)
     count = 0
 
-    def __init__(self, usernames, debug=False):
+    def __init__(self, usernames, webhook_url=None, debug=False):
         super().__init__()
         self.usernames = usernames
+        self.webhook_url = webhook_url
         self.running = True
         self.debug = debug
         self.consecutive_errors = 0
@@ -63,6 +64,10 @@ class Checker(QThread):
                 self.update.emit(f"✅ [AVAILABLE] {username}")
                 self.consecutive_errors = 0
                 
+                # Send to Discord webhook if provided
+                if self.webhook_url:
+                    self.send_to_discord(username)
+                
             elif response.status_code == 429:
                 self.update.emit(f"⚠️ [RATE LIMIT] {username}: Slow down!")
                 self.consecutive_errors += 1
@@ -83,6 +88,40 @@ class Checker(QThread):
             else:
                 error_msg = str(e)
                 self.update.emit(f"⚠️ [ERROR] {username}: {error_msg}")
+
+    def send_to_discord(self, username):
+        """Send available username to Discord webhook"""
+        try:
+            webhook_data = {
+                "embeds": [{
+                    "title": "🎮 Available Roblox Username Found!",
+                    "description": f"**Username:** `{username}`",
+                    "color": 3447003,  # Blue color
+                    "fields": [
+                        {
+                            "name": "🔗 Direct Link",
+                            "value": f"https://www.roblox.com/search/users?keyword={username}",
+                            "inline": False
+                        }
+                    ],
+                    "footer": {
+                        "text": "Roblox Username Checker"
+                    }
+                }]
+            }
+            
+            response = requests.post(self.webhook_url, json=webhook_data, timeout=5)
+            
+            if response.status_code == 204:
+                if self.debug:
+                    self.update.emit(f"[DEBUG] ✅ Sent {username} to Discord webhook")
+            else:
+                if self.debug:
+                    self.update.emit(f"[DEBUG] ⚠️ Webhook failed: Status {response.status_code}")
+                    
+        except Exception as e:
+            if self.debug:
+                self.update.emit(f"[DEBUG] ⚠️ Webhook error: {str(e)}")
 
 # ------------------- GUI App ------------------- #
 class App(QMainWindow):
@@ -120,6 +159,30 @@ class App(QMainWindow):
         
         info_group.setLayout(info_layout)
         main_layout.addWidget(info_group)
+
+        # Webhook Section
+        webhook_group = QGroupBox("🔔 Discord Webhook (Optional)")
+        webhook_group.setStyleSheet("QGroupBox { font-weight: bold; }")
+        webhook_layout = QVBoxLayout()
+        
+        webhook_info = QLabel("💬 Paste your Discord webhook URL to get notified when available usernames are found!")
+        webhook_info.setWordWrap(True)
+        webhook_info.setStyleSheet("background-color: #f8d7da; padding: 8px; border-radius: 3px; color: #721c24;")
+        webhook_layout.addWidget(webhook_info)
+        
+        webhook_input_layout = QHBoxLayout()
+        self.webhook_input = QLineEdit()
+        self.webhook_input.setPlaceholderText("https://discord.com/api/webhooks/...")
+        webhook_input_layout.addWidget(self.webhook_input)
+        
+        test_webhook_btn = QPushButton("🧪 Test")
+        test_webhook_btn.setMaximumWidth(80)
+        test_webhook_btn.clicked.connect(self.test_webhook)
+        webhook_input_layout.addWidget(test_webhook_btn)
+        
+        webhook_layout.addLayout(webhook_input_layout)
+        webhook_group.setLayout(webhook_layout)
+        main_layout.addWidget(webhook_group)
 
         # Generator Section
         gen_group = QGroupBox("Step 1: Generate Random Usernames (Optional)")
@@ -311,6 +374,36 @@ class App(QMainWindow):
         self.status_label.setText(f"✅ Generated {len(generated)} usernames")
         self.status_label.setStyleSheet("padding: 8px; font-weight: bold; background-color: #c8e6c9; border-radius: 3px;")
 
+    def test_webhook(self):
+        """Test the Discord webhook"""
+        webhook_url = self.webhook_input.text().strip()
+        
+        if not webhook_url:
+            QMessageBox.warning(self, "No Webhook", "Please enter a webhook URL first!")
+            return
+        
+        try:
+            test_data = {
+                "embeds": [{
+                    "title": "🧪 Test Message",
+                    "description": "Your webhook is working correctly!",
+                    "color": 5763719,  # Green color
+                    "footer": {
+                        "text": "Roblox Username Checker - Webhook Test"
+                    }
+                }]
+            }
+            
+            response = requests.post(webhook_url, json=test_data, timeout=5)
+            
+            if response.status_code == 204:
+                QMessageBox.information(self, "Success", "✅ Webhook test successful!\nCheck your Discord channel.")
+            else:
+                QMessageBox.warning(self, "Failed", f"❌ Webhook test failed!\nStatus code: {response.status_code}")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"❌ Failed to send test message:\n{str(e)}")
+
     def start_clicked(self):
         usernames = self.get_usernames()
         if not usernames:
@@ -318,16 +411,21 @@ class App(QMainWindow):
             return
         
         debug = self.debug_checkbox.isChecked()
+        webhook_url = self.webhook_input.text().strip() or None
         
         self.progress_bar.setMaximum(len(usernames))
         self.progress_bar.setValue(0)
         self.output_text.clear()
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
-        self.status_label.setText(f"🔄 Checking {len(usernames)} usernames...")
+        
+        if webhook_url:
+            self.status_label.setText(f"🔄 Checking {len(usernames)} usernames (webhook enabled)...")
+        else:
+            self.status_label.setText(f"🔄 Checking {len(usernames)} usernames...")
         self.status_label.setStyleSheet("padding: 8px; font-weight: bold; background-color: #fff9c4; border-radius: 3px;")
 
-        self.thread = Checker(usernames, debug)
+        self.thread = Checker(usernames, webhook_url, debug)
         self.thread.update.connect(self.update_text)
         self.thread.pupdate.connect(self.update_progress)
         self.thread.finished.connect(self.checking_finished)
