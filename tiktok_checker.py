@@ -42,328 +42,328 @@ class Checker(QThread):
                     url = self.BASE_URL.format(username)
                     
                     async with session.get(url, allow_redirects=True, timeout=20) as resp:
-                    status = resp.status
-                    
-                    # Read the response
-                    try:
-                        body = await resp.text(errors='ignore')
-                        body_lower = body.lower()
-                    except Exception as e:
-                        self.update.emit(f"⚠️ [ERROR] {username}: Could not read response")
-                        return
-                    
-                    # Debug mode - show raw indicators
-                    if self.debug:
-                        self.update.emit(f"\n{'='*60}")
-                        self.update.emit(f"[DEBUG] Checking: {username}")
-                        self.update.emit(f"[DEBUG] Status Code: {status}")
-                        self.update.emit(f"[DEBUG] Final URL: {resp.url}")
-                        self.update.emit(f"[DEBUG] Body Length: {len(body)} chars")
-                    
-                    # ===== CLEAR SIGNALS =====
-                    
-                    # 1. Rate limited
-                    if status == 429:
-                        self.update.emit(f"⚠️ [RATE LIMIT] {username}: Slow down!")
-                        await asyncio.sleep(10)
-                        return
-                    
-                    # 2. Blocked or forbidden
-                    if status in [403]:
-                        self.update.emit(f"⚠️ [BLOCKED] {username}: Status {status} - Try VPN or wait")
-                        return
-                    
-                    # 3. Check if redirected (TikTok redirects invalid usernames)
-                    final_url = str(resp.url).lower()
-                    if username.lower() not in final_url:
+                        status = resp.status
+                        
+                        # Read the response
+                        try:
+                            body = await resp.text(errors='ignore')
+                            body_lower = body.lower()
+                        except Exception as e:
+                            self.update.emit(f"⚠️ [ERROR] {username}: Could not read response")
+                            return
+                        
+                        # Debug mode - show raw indicators
                         if self.debug:
-                            self.update.emit(f"[DEBUG] Redirected away from username - likely available")
-                        self.update.emit(f"✅ [AVAILABLE] {username} (redirected)")
-                        return
-                    
-                    # ===== ANALYZE BODY CONTENT =====
-                    
-                    # Check for explicit "not found" signals - but DON'T trust them yet
-                    not_found_signals = [
-                        "couldn't find this account",
-                        "user not found",
-                        "page not found",
-                        "this account cannot be found",
-                        '"statusCode":10202',  # TikTok error code for user not found
-                        '"statusCode":10221',  # Another not found code
-                    ]
-                    
-                    found_not_found = False
-                    for signal in not_found_signals:
-                        if signal.lower() in body_lower:
+                            self.update.emit(f"\n{'='*60}")
+                            self.update.emit(f"[DEBUG] Checking: {username}")
+                            self.update.emit(f"[DEBUG] Status Code: {status}")
+                            self.update.emit(f"[DEBUG] Final URL: {resp.url}")
+                            self.update.emit(f"[DEBUG] Body Length: {len(body)} chars")
+                        
+                        # ===== CLEAR SIGNALS =====
+                        
+                        # 1. Rate limited
+                        if status == 429:
+                            self.update.emit(f"⚠️ [RATE LIMIT] {username}: Slow down!")
+                            await asyncio.sleep(10)
+                            return
+                        
+                        # 2. Blocked or forbidden
+                        if status in [403]:
+                            self.update.emit(f"⚠️ [BLOCKED] {username}: Status {status} - Try VPN or wait")
+                            return
+                        
+                        # 3. Check if redirected (TikTok redirects invalid usernames)
+                        final_url = str(resp.url).lower()
+                        if username.lower() not in final_url:
                             if self.debug:
-                                self.update.emit(f"[DEBUG] Found NOT FOUND signal: {signal}")
-                            found_not_found = True
-                            break
-                    
-                    # DON'T return yet - check for other signals first
-                    # TikTok shows "couldn't find" for private/banned accounts too!
-                    
-                    # Check for profile existence signals
-                    profile_signals = {
-                        'has_user_id': False,
-                        'has_follower_count': False,
-                        'has_following_count': False,
-                        'has_video_count': False,
-                        'has_verified_badge': False,
-                        'has_signature': False,
-                        'has_avatar': False,
-                        'has_username_in_data': False,
-                        'has_seo_data': False,
-                        'has_private_account': False
-                    }
-                    
-                    # Look for user ID in TikTok's data structure
-                    user_id_patterns = [
-                        r'"id"[:\s]*"(\d{10,})"',
-                        r'"userId"[:\s]*"(\d{10,})"',
-                        r'"uid"[:\s]*"(\d{10,})"',
-                        r'"uniqueId"[:\s]*"' + re.escape(username) + r'"[^}]*"id"[:\s]*"(\d{10,})"'
-                    ]
-                    
-                    for pattern in user_id_patterns:
-                        user_id_match = re.search(pattern, body, re.IGNORECASE)
-                        if user_id_match:
-                            profile_signals['has_user_id'] = True
+                                self.update.emit(f"[DEBUG] Redirected away from username - likely available")
+                            self.update.emit(f"✅ [AVAILABLE] {username} (redirected)")
+                            return
+                        
+                        # ===== ANALYZE BODY CONTENT =====
+                        
+                        # Check for explicit "not found" signals - but DON'T trust them yet
+                        not_found_signals = [
+                            "couldn't find this account",
+                            "user not found",
+                            "page not found",
+                            "this account cannot be found",
+                            '"statusCode":10202',  # TikTok error code for user not found
+                            '"statusCode":10221',  # Another not found code
+                        ]
+                        
+                        found_not_found = False
+                        for signal in not_found_signals:
+                            if signal.lower() in body_lower:
+                                if self.debug:
+                                    self.update.emit(f"[DEBUG] Found NOT FOUND signal: {signal}")
+                                found_not_found = True
+                                break
+                        
+                        # DON'T return yet - check for other signals first
+                        # TikTok shows "couldn't find" for private/banned accounts too!
+                        
+                        # Check for profile existence signals
+                        profile_signals = {
+                            'has_user_id': False,
+                            'has_follower_count': False,
+                            'has_following_count': False,
+                            'has_video_count': False,
+                            'has_verified_badge': False,
+                            'has_signature': False,
+                            'has_avatar': False,
+                            'has_username_in_data': False,
+                            'has_seo_data': False,
+                            'has_private_account': False
+                        }
+                        
+                        # Look for user ID in TikTok's data structure
+                        user_id_patterns = [
+                            r'"id"[:\s]*"(\d{10,})"',
+                            r'"userId"[:\s]*"(\d{10,})"',
+                            r'"uid"[:\s]*"(\d{10,})"',
+                            r'"uniqueId"[:\s]*"' + re.escape(username) + r'"[^}]*"id"[:\s]*"(\d{10,})"'
+                        ]
+                        
+                        for pattern in user_id_patterns:
+                            user_id_match = re.search(pattern, body, re.IGNORECASE)
+                            if user_id_match:
+                                profile_signals['has_user_id'] = True
+                                if self.debug:
+                                    try:
+                                        user_id = user_id_match.group(1)
+                                        self.update.emit(f"[DEBUG] ✓ Found user ID: {user_id}")
+                                    except:
+                                        self.update.emit(f"[DEBUG] ✓ Found user ID pattern")
+                                break
+                        
+                        # Check for username in data (strong signal)
+                        if re.search(rf'"uniqueId"[:\s]*"{username}"', body, re.IGNORECASE):
+                            profile_signals['has_username_in_data'] = True
                             if self.debug:
-                                try:
-                                    user_id = user_id_match.group(1)
-                                    self.update.emit(f"[DEBUG] ✓ Found user ID: {user_id}")
-                                except:
-                                    self.update.emit(f"[DEBUG] ✓ Found user ID pattern")
-                            break
-                    
-                    # Check for username in data (strong signal)
-                    if re.search(rf'"uniqueId"[:\s]*"{username}"', body, re.IGNORECASE):
-                        profile_signals['has_username_in_data'] = True
-                        if self.debug:
-                            self.update.emit(f"[DEBUG] ✓ Username '{username}' found in user data")
-                    
-                    # Follower count
-                    follower_patterns = [
-                        r'"followerCount"[:\s]*(\d+)',
-                        r'"fans"[:\s]*(\d+)',
-                        r'<strong[^>]*data-e2e="followers-count"[^>]*>([0-9.KMB]+)</strong>'
-                    ]
-                    for pattern in follower_patterns:
-                        if re.search(pattern, body):
-                            profile_signals['has_follower_count'] = True
+                                self.update.emit(f"[DEBUG] ✓ Username '{username}' found in user data")
+                        
+                        # Follower count
+                        follower_patterns = [
+                            r'"followerCount"[:\s]*(\d+)',
+                            r'"fans"[:\s]*(\d+)',
+                            r'<strong[^>]*data-e2e="followers-count"[^>]*>([0-9.KMB]+)</strong>'
+                        ]
+                        for pattern in follower_patterns:
+                            if re.search(pattern, body):
+                                profile_signals['has_follower_count'] = True
+                                if self.debug:
+                                    match = re.search(pattern, body)
+                                    self.update.emit(f"[DEBUG] ✓ Found follower count: {match.group(1)}")
+                                break
+                        
+                        # Following count
+                        following_patterns = [
+                            r'"followingCount"[:\s]*(\d+)',
+                            r'"following"[:\s]*(\d+)',
+                        ]
+                        for pattern in following_patterns:
+                            if re.search(pattern, body):
+                                profile_signals['has_following_count'] = True
+                                if self.debug:
+                                    self.update.emit(f"[DEBUG] ✓ Found following count")
+                                break
+                        
+                        # Video count
+                        video_patterns = [
+                            r'"videoCount"[:\s]*(\d+)',
+                            r'"video"[:\s]*(\d+)',
+                        ]
+                        for pattern in video_patterns:
+                            if re.search(pattern, body):
+                                profile_signals['has_video_count'] = True
+                                if self.debug:
+                                    self.update.emit(f"[DEBUG] ✓ Found video count")
+                                break
+                        
+                        # Verified badge
+                        if re.search(r'"verified"[:\s]*true', body, re.IGNORECASE):
+                            profile_signals['has_verified_badge'] = True
                             if self.debug:
-                                match = re.search(pattern, body)
-                                self.update.emit(f"[DEBUG] ✓ Found follower count: {match.group(1)}")
-                            break
-                    
-                    # Following count
-                    following_patterns = [
-                        r'"followingCount"[:\s]*(\d+)',
-                        r'"following"[:\s]*(\d+)',
-                    ]
-                    for pattern in following_patterns:
-                        if re.search(pattern, body):
-                            profile_signals['has_following_count'] = True
+                                self.update.emit(f"[DEBUG] ✓ Account is verified")
+                        
+                        # Signature/bio
+                        if re.search(r'"signature"[:\s]*"[^"]+"', body):
+                            profile_signals['has_signature'] = True
                             if self.debug:
-                                self.update.emit(f"[DEBUG] ✓ Found following count")
-                            break
-                    
-                    # Video count
-                    video_patterns = [
-                        r'"videoCount"[:\s]*(\d+)',
-                        r'"video"[:\s]*(\d+)',
-                    ]
-                    for pattern in video_patterns:
-                        if re.search(pattern, body):
-                            profile_signals['has_video_count'] = True
-                            if self.debug:
-                                self.update.emit(f"[DEBUG] ✓ Found video count")
-                            break
-                    
-                    # Verified badge
-                    if re.search(r'"verified"[:\s]*true', body, re.IGNORECASE):
-                        profile_signals['has_verified_badge'] = True
-                        if self.debug:
-                            self.update.emit(f"[DEBUG] ✓ Account is verified")
-                    
-                    # Signature/bio
-                    if re.search(r'"signature"[:\s]*"[^"]+"', body):
-                        profile_signals['has_signature'] = True
-                        if self.debug:
-                            self.update.emit(f"[DEBUG] ✓ Found signature/bio")
-                    
-                    # Avatar URL
-                    avatar_patterns = [
-                        r'"avatarLarger"[:\s]*"https://[^"]+"',
-                        r'"avatarThumb"[:\s]*"https://[^"]+"',
-                    ]
-                    for pattern in avatar_patterns:
-                        if re.search(pattern, body):
-                            profile_signals['has_avatar'] = True
-                            if self.debug:
-                                self.update.emit(f"[DEBUG] ✓ Found avatar URL")
-                            break
-                    
-                    # Check for SEO/meta data (TikTok includes this even for private accounts)
-                    if re.search(rf'<meta[^>]*property="og:url"[^>]*content="[^"]*@{username}[^"]*"', body, re.IGNORECASE):
-                        profile_signals['has_seo_data'] = True
-                        if self.debug:
-                            self.update.emit(f"[DEBUG] ✓ Found OpenGraph data with username")
-                    
-                    # Check page title for username (strong signal account exists)
-                    title_match = re.search(r'<title>([^<]+)</title>', body, re.IGNORECASE)
-                    if title_match:
-                        title = title_match.group(1)
-                        # If title contains the actual username (not just "TikTok"), account exists
-                        if username.lower() in title.lower() and title.lower() != 'tiktok':
+                                self.update.emit(f"[DEBUG] ✓ Found signature/bio")
+                        
+                        # Avatar URL
+                        avatar_patterns = [
+                            r'"avatarLarger"[:\s]*"https://[^"]+"',
+                            r'"avatarThumb"[:\s]*"https://[^"]+"',
+                        ]
+                        for pattern in avatar_patterns:
+                            if re.search(pattern, body):
+                                profile_signals['has_avatar'] = True
+                                if self.debug:
+                                    self.update.emit(f"[DEBUG] ✓ Found avatar URL")
+                                break
+                        
+                        # Check for SEO/meta data (TikTok includes this even for private accounts)
+                        if re.search(rf'<meta[^>]*property="og:url"[^>]*content="[^"]*@{username}[^"]*"', body, re.IGNORECASE):
                             profile_signals['has_seo_data'] = True
                             if self.debug:
-                                self.update.emit(f"[DEBUG] ✓ Username in title: {title}")
-                    
-                    # Check for private account indicator - BUT BE CAREFUL
-                    # TikTok shows "This account is private" for both:
-                    # 1. Actually private accounts (with user data)
-                    # 2. Non-existent usernames (no user data)
-                    # So we need OTHER signals to confirm it's real
-                    if 'private account' in body_lower or '"privateAccount":true' in body_lower or re.search(r'this account is private', body, re.IGNORECASE):
-                        # Only mark as private if we have OTHER evidence the account exists
-                        if profile_signals['has_user_id'] or profile_signals['has_username_in_data'] or profile_signals['has_follower_count']:
-                            profile_signals['has_private_account'] = True
-                            if self.debug:
-                                self.update.emit(f"[DEBUG] ✓ Account is PRIVATE (exists but hidden)")
-                        elif self.debug:
-                            self.update.emit(f"[DEBUG] ✗ Shows 'private' text but NO user data (generic error message)")
-                    
-                    # Count signals
-                    signal_count = sum(profile_signals.values())
-                    
-                    if self.debug:
-                        self.update.emit(f"[DEBUG] Profile signals found: {signal_count}/10")
-                        self.update.emit(f"[DEBUG] Signals: {profile_signals}")
-                        self.update.emit(f"[DEBUG] 'Not found' message present: {found_not_found}")
-                    
-                    # ===== DECISION LOGIC =====
-                    
-                    # PRIORITY 1: Check for REAL user data (strongest signals)
-                    # If we have user_id + username match + follower count = definitely TAKEN
-                    if profile_signals['has_user_id'] and profile_signals['has_username_in_data'] and profile_signals['has_follower_count']:
-                        status = "private account" if profile_signals['has_private_account'] else "public account"
-                        self.update.emit(f"❌ [TAKEN] {username} ({status} with confirmed data)")
-                        return
-                    
-                    # If account is explicitly private WITH user data, it's TAKEN
-                    if profile_signals['has_private_account'] and (profile_signals['has_user_id'] or profile_signals['has_follower_count']):
-                        self.update.emit(f"❌ [TAKEN] {username} (private account - exists but hidden)")
-                        return
-                    
-                    # If we have SEO data (title/meta tags) + other signals, account EXISTS
-                    if profile_signals['has_seo_data'] and signal_count >= 2:
-                        self.update.emit(f"❌ [TAKEN] {username} (SEO data + profile signals)")
-                        return
-                    
-                    # Strong evidence of real profile
-                    if profile_signals['has_username_in_data'] and profile_signals['has_user_id']:
-                        self.update.emit(f"❌ [TAKEN] {username} (username + user_id confirmed)")
-                        return
-                    
-                    # Multiple strong signals (4+)
-                    if signal_count >= 4:
-                        self.update.emit(f"❌ [TAKEN] {username} ({signal_count} strong signals)")
-                        return
-                    
-                    # Has engagement metrics (followers/following/videos)
-                    engagement_signals = (
-                        profile_signals['has_follower_count'] + 
-                        profile_signals['has_following_count'] + 
-                        profile_signals['has_video_count']
-                    )
-                    if engagement_signals >= 2:
-                        self.update.emit(f"❌ [TAKEN] {username} (engagement data present)")
-                        return
-                    
-                    # PRIORITY 2: Check "not found" signal
-                    # Only trust it if we have NO real user data
-                    if found_not_found and signal_count == 0:
-                        self.update.emit(f"✅ [AVAILABLE] {username} (not found + no profile data)")
-                        return
-                    
-                    # "Not found" but only has "private" flag without real data = AVAILABLE
-                    if found_not_found and signal_count == 1 and profile_signals['has_private_account']:
-                        self.update.emit(f"✅ [AVAILABLE] {username} (generic error message, no real data)")
-                        return
-                    
-                    # Found "not found" BUT has real signals = likely private/restricted
-                    if found_not_found and signal_count > 1:
-                        self.update.emit(f"❌ [TAKEN] {username} (shows 'not found' but has {signal_count} real signals)")
-                        return
-                    
-                    # Check page title
-                    title_match = re.search(r'<title>([^<]+)</title>', body, re.IGNORECASE)
-                    if title_match:
-                        title = title_match.group(1)
-                        # Real profiles have username in title with @ or TikTok
-                        if (f'@{username}' in title.lower() or username in title.lower()) and 'tiktok' in title.lower():
-                            if signal_count >= 1:  # Even 1 signal + title = taken
+                                self.update.emit(f"[DEBUG] ✓ Found OpenGraph data with username")
+                        
+                        # Check page title for username (strong signal account exists)
+                        title_match = re.search(r'<title>([^<]+)</title>', body, re.IGNORECASE)
+                        if title_match:
+                            title = title_match.group(1)
+                            # If title contains the actual username (not just "TikTok"), account exists
+                            if username.lower() in title.lower() and title.lower() != 'tiktok':
+                                profile_signals['has_seo_data'] = True
                                 if self.debug:
-                                    self.update.emit(f"[DEBUG] ✓ Username confirmed in title: {title}")
-                                self.update.emit(f"❌ [TAKEN] {username} (title confirms + {signal_count} signals)")
-                                return
-                    
-                    # Low signal count = likely available
-                    if signal_count <= 1:
-                        self.update.emit(f"✅ [AVAILABLE] {username} (no real profile data)")
-                        return
-                    
-                    # 2-3 signals but no strong confirmation
-                    if signal_count <= 3 and not profile_signals['has_username_in_data']:
-                        self.update.emit(f"✅ [AVAILABLE] {username} (only placeholder data)")
-                        return
-                    
-                    # Unclear - needs manual check
-                    self.update.emit(f"❓ [UNCLEAR] {username} ({signal_count} signals - manual check recommended)")
-                    if self.debug:
-                        self.update.emit(f"[DEBUG] URL for manual check: {url}")
-                    
-                    # Success - reset error counter
-                    self.consecutive_errors = 0
+                                    self.update.emit(f"[DEBUG] ✓ Username in title: {title}")
+                        
+                        # Check for private account indicator - BUT BE CAREFUL
+                        # TikTok shows "This account is private" for both:
+                        # 1. Actually private accounts (with user data)
+                        # 2. Non-existent usernames (no user data)
+                        # So we need OTHER signals to confirm it's real
+                        if 'private account' in body_lower or '"privateAccount":true' in body_lower or re.search(r'this account is private', body, re.IGNORECASE):
+                            # Only mark as private if we have OTHER evidence the account exists
+                            if profile_signals['has_user_id'] or profile_signals['has_username_in_data'] or profile_signals['has_follower_count']:
+                                profile_signals['has_private_account'] = True
+                                if self.debug:
+                                    self.update.emit(f"[DEBUG] ✓ Account is PRIVATE (exists but hidden)")
+                            elif self.debug:
+                                self.update.emit(f"[DEBUG] ✗ Shows 'private' text but NO user data (generic error message)")
+                        
+                        # Count signals
+                        signal_count = sum(profile_signals.values())
+                        
+                        if self.debug:
+                            self.update.emit(f"[DEBUG] Profile signals found: {signal_count}/10")
+                            self.update.emit(f"[DEBUG] Signals: {profile_signals}")
+                            self.update.emit(f"[DEBUG] 'Not found' message present: {found_not_found}")
+                        
+                        # ===== DECISION LOGIC =====
+                        
+                        # PRIORITY 1: Check for REAL user data (strongest signals)
+                        # If we have user_id + username match + follower count = definitely TAKEN
+                        if profile_signals['has_user_id'] and profile_signals['has_username_in_data'] and profile_signals['has_follower_count']:
+                            status = "private account" if profile_signals['has_private_account'] else "public account"
+                            self.update.emit(f"❌ [TAKEN] {username} ({status} with confirmed data)")
+                            return
+                        
+                        # If account is explicitly private WITH user data, it's TAKEN
+                        if profile_signals['has_private_account'] and (profile_signals['has_user_id'] or profile_signals['has_follower_count']):
+                            self.update.emit(f"❌ [TAKEN] {username} (private account - exists but hidden)")
+                            return
+                        
+                        # If we have SEO data (title/meta tags) + other signals, account EXISTS
+                        if profile_signals['has_seo_data'] and signal_count >= 2:
+                            self.update.emit(f"❌ [TAKEN] {username} (SEO data + profile signals)")
+                            return
+                        
+                        # Strong evidence of real profile
+                        if profile_signals['has_username_in_data'] and profile_signals['has_user_id']:
+                            self.update.emit(f"❌ [TAKEN] {username} (username + user_id confirmed)")
+                            return
+                        
+                        # Multiple strong signals (4+)
+                        if signal_count >= 4:
+                            self.update.emit(f"❌ [TAKEN] {username} ({signal_count} strong signals)")
+                            return
+                        
+                        # Has engagement metrics (followers/following/videos)
+                        engagement_signals = (
+                            profile_signals['has_follower_count'] + 
+                            profile_signals['has_following_count'] + 
+                            profile_signals['has_video_count']
+                        )
+                        if engagement_signals >= 2:
+                            self.update.emit(f"❌ [TAKEN] {username} (engagement data present)")
+                            return
+                        
+                        # PRIORITY 2: Check "not found" signal
+                        # Only trust it if we have NO real user data
+                        if found_not_found and signal_count == 0:
+                            self.update.emit(f"✅ [AVAILABLE] {username} (not found + no profile data)")
+                            return
+                        
+                        # "Not found" but only has "private" flag without real data = AVAILABLE
+                        if found_not_found and signal_count == 1 and profile_signals['has_private_account']:
+                            self.update.emit(f"✅ [AVAILABLE] {username} (generic error message, no real data)")
+                            return
+                        
+                        # Found "not found" BUT has real signals = likely private/restricted
+                        if found_not_found and signal_count > 1:
+                            self.update.emit(f"❌ [TAKEN] {username} (shows 'not found' but has {signal_count} real signals)")
+                            return
+                        
+                        # Check page title
+                        title_match = re.search(r'<title>([^<]+)</title>', body, re.IGNORECASE)
+                        if title_match:
+                            title = title_match.group(1)
+                            # Real profiles have username in title with @ or TikTok
+                            if (f'@{username}' in title.lower() or username in title.lower()) and 'tiktok' in title.lower():
+                                if signal_count >= 1:  # Even 1 signal + title = taken
+                                    if self.debug:
+                                        self.update.emit(f"[DEBUG] ✓ Username confirmed in title: {title}")
+                                    self.update.emit(f"❌ [TAKEN] {username} (title confirms + {signal_count} signals)")
+                                    return
+                        
+                        # Low signal count = likely available
+                        if signal_count <= 1:
+                            self.update.emit(f"✅ [AVAILABLE] {username} (no real profile data)")
+                            return
+                        
+                        # 2-3 signals but no strong confirmation
+                        if signal_count <= 3 and not profile_signals['has_username_in_data']:
+                            self.update.emit(f"✅ [AVAILABLE] {username} (only placeholder data)")
+                            return
+                        
+                        # Unclear - needs manual check
+                        self.update.emit(f"❓ [UNCLEAR] {username} ({signal_count} signals - manual check recommended)")
+                        if self.debug:
+                            self.update.emit(f"[DEBUG] URL for manual check: {url}")
+                        
+                        # Success - reset error counter
+                        self.consecutive_errors = 0
+                        break
+                
+                except aiohttp.ClientConnectorError as e:
+                    self.consecutive_errors += 1
+                    if attempt < retries - 1:
+                        if self.debug:
+                            self.update.emit(f"[DEBUG] Connection failed, retrying {username}...")
+                        await asyncio.sleep(3)
+                        continue
+                    else:
+                        self.update.emit(f"⚠️ [CONNECTION ERROR] {username}: Cannot reach TikTok")
+                        await self.check_for_cooldown()
+                except asyncio.TimeoutError:
+                    self.consecutive_errors += 1
+                    if attempt < retries - 1:
+                        if self.debug:
+                            self.update.emit(f"[DEBUG] Timeout, retrying {username}...")
+                        await asyncio.sleep(2)
+                        continue
+                    else:
+                        self.update.emit(f"⏱️ [TIMEOUT] {username}")
+                        await self.check_for_cooldown()
+                except Exception as e:
+                    self.consecutive_errors += 1
+                    error_msg = str(e)[:80]
+                    # Check if it's a DNS/connection issue
+                    if 'nodename nor servname' in error_msg or 'ssl' in error_msg.lower() or 'connect' in error_msg.lower():
+                        self.update.emit(f"⚠️ [CONNECTION ERROR] {username}: TikTok blocked or network issue")
+                        await self.check_for_cooldown()
+                    else:
+                        self.update.emit(f"⚠️ [ERROR] {username}: {error_msg}")
                     break
-                    
-            except aiohttp.ClientConnectorError as e:
-                self.consecutive_errors += 1
-                if attempt < retries - 1:
-                    if self.debug:
-                        self.update.emit(f"[DEBUG] Connection failed, retrying {username}...")
-                    await asyncio.sleep(3)
-                    continue
-                else:
-                    self.update.emit(f"⚠️ [CONNECTION ERROR] {username}: Cannot reach TikTok")
-                    await self.check_for_cooldown()
-            except asyncio.TimeoutError:
-                self.consecutive_errors += 1
-                if attempt < retries - 1:
-                    if self.debug:
-                        self.update.emit(f"[DEBUG] Timeout, retrying {username}...")
-                    await asyncio.sleep(2)
-                    continue
-                else:
-                    self.update.emit(f"⏱️ [TIMEOUT] {username}")
-                    await self.check_for_cooldown()
-            except Exception as e:
-                self.consecutive_errors += 1
-                error_msg = str(e)[:80]
-                # Check if it's a DNS/connection issue
-                if 'nodename nor servname' in error_msg or 'ssl' in error_msg.lower() or 'connect' in error_msg.lower():
-                    self.update.emit(f"⚠️ [CONNECTION ERROR] {username}: TikTok blocked or network issue")
-                    await self.check_for_cooldown()
-                else:
-                    self.update.emit(f"⚠️ [ERROR] {username}: {error_msg}")
-                break
-            finally:
-                async with lock:
-                    self.count += 1
-                self.pupdate.emit(self.count)
+                finally:
+                    async with lock:
+                        self.count += 1
+                    self.pupdate.emit(self.count)
 
     async def check_for_cooldown(self):
         """Check if we need to pause due to consecutive errors"""
