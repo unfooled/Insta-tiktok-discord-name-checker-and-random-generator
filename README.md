@@ -34,3 +34,15 @@ has auto create account from: https://github.com/qing762/roblox-auto-signup cred
 name checker
 and webhook to know what are available
 and others features from the other like generator
+
+# UPDATEEEEEE
+
+Updated so now the tik tok username checker works 
+
+## NEW auto tik tok name claimer!!!
+
+now you can "auto claim usernames" the script gets your session id/cookies that you can get by installing https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm and copying the json file to the txt file and the script ### is not made to spam request tik tok to chnage the user
+What it does is emulates a broswer logs in see if the username is applyable and if not just skips to another username
+### you can pair this with the tik tok username checker and on the webhook you put to send the users you get and on the new script you create a bot (the script has a step by step how to mkae one bot) andthe bot every 5s checks for new user the first script sends that are available and tries to claim them on your broswer
+
+## YOU NEED CHROME INSTALLED BTW
