@@ -2,6 +2,7 @@ import sys, aiohttp, asyncio, random, string, re, json
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import QFont
+import requests  # added only for webhook
 
 # ------------------- Checker Thread ------------------- #
 class Checker(QThread):
@@ -11,12 +12,13 @@ class Checker(QThread):
 
     BASE_URL = "https://tiktok.com/@{}"
 
-    def __init__(self, usernames, user_agent, debug=False):
+    def __init__(self, usernames, user_agent, debug=False, webhook_url=None):
         super().__init__()
         self.usernames = usernames
         self.user_agent = user_agent
         self.running = True
         self.debug = debug
+        self.webhook_url = webhook_url
         self.consecutive_errors = 0  # Track errors in a row
         self.max_errors_before_pause = 3  # Pause after 3 errors in a row
 
@@ -79,6 +81,8 @@ class Checker(QThread):
                             if self.debug:
                                 self.update.emit(f"[DEBUG] Redirected away from username - likely available")
                             self.update.emit(f"✅ [AVAILABLE] {username} (redirected)")
+                            if self.webhook_url:
+                                self.send_to_discord(username)
                             return
                         
                         # ===== ANALYZE BODY CONTENT =====
@@ -183,7 +187,7 @@ class Checker(QThread):
                                 break
                         
                         # Verified badge
-                        if re.search(r'"verified"[:\s]*true', body, re.IGNORECASE):
+                        if '"verified":true' in body or 'verified-icon' in body:
                             profile_signals['has_verified_badge'] = True
                             if self.debug:
                                 self.update.emit(f"[DEBUG] ✓ Account is verified")
@@ -245,7 +249,6 @@ class Checker(QThread):
                             self.update.emit(f"[DEBUG] 'Not found' message present: {found_not_found}")
                         
                         # ===== DECISION LOGIC =====
-                        
                         # PRIORITY 1: Check for REAL user data (strongest signals)
                         # If we have user_id + username match + follower count = definitely TAKEN
                         if profile_signals['has_user_id'] and profile_signals['has_username_in_data'] and profile_signals['has_follower_count']:
@@ -275,8 +278,8 @@ class Checker(QThread):
                         
                         # Has engagement metrics (followers/following/videos)
                         engagement_signals = (
-                            profile_signals['has_follower_count'] + 
-                            profile_signals['has_following_count'] + 
+                            profile_signals['has_follower_count'] +
+                            profile_signals['has_following_count'] +
                             profile_signals['has_video_count']
                         )
                         if engagement_signals >= 2:
@@ -287,11 +290,15 @@ class Checker(QThread):
                         # Only trust it if we have NO real user data
                         if found_not_found and signal_count == 0:
                             self.update.emit(f"✅ [AVAILABLE] {username} (not found + no profile data)")
+                            if self.webhook_url:
+                                self.send_to_discord(username)
                             return
                         
                         # "Not found" but only has "private" flag without real data = AVAILABLE
                         if found_not_found and signal_count == 1 and profile_signals['has_private_account']:
                             self.update.emit(f"✅ [AVAILABLE] {username} (generic error message, no real data)")
+                            if self.webhook_url:
+                                self.send_to_discord(username)
                             return
                         
                         # Found "not found" BUT has real signals = likely private/restricted
@@ -314,11 +321,15 @@ class Checker(QThread):
                         # Low signal count = likely available
                         if signal_count <= 1:
                             self.update.emit(f"✅ [AVAILABLE] {username} (no real profile data)")
+                            if self.webhook_url:
+                                self.send_to_discord(username)
                             return
                         
                         # 2-3 signals but no strong confirmation
                         if signal_count <= 3 and not profile_signals['has_username_in_data']:
                             self.update.emit(f"✅ [AVAILABLE] {username} (only placeholder data)")
+                            if self.webhook_url:
+                                self.send_to_discord(username)
                             return
                         
                         # Unclear - needs manual check
@@ -329,7 +340,7 @@ class Checker(QThread):
                         # Success - reset error counter
                         self.consecutive_errors = 0
                         break
-                
+
                 except aiohttp.ClientConnectorError as e:
                     self.consecutive_errors += 1
                     if attempt < retries - 1:
@@ -340,6 +351,7 @@ class Checker(QThread):
                     else:
                         self.update.emit(f"⚠️ [CONNECTION ERROR] {username}: Cannot reach TikTok")
                         await self.check_for_cooldown()
+
                 except asyncio.TimeoutError:
                     self.consecutive_errors += 1
                     if attempt < retries - 1:
@@ -350,6 +362,7 @@ class Checker(QThread):
                     else:
                         self.update.emit(f"⏱️ [TIMEOUT] {username}")
                         await self.check_for_cooldown()
+
                 except Exception as e:
                     self.consecutive_errors += 1
                     error_msg = str(e)[:80]
@@ -360,31 +373,29 @@ class Checker(QThread):
                     else:
                         self.update.emit(f"⚠️ [ERROR] {username}: {error_msg}")
                     break
+
                 finally:
-                    async with lock:
-                        self.count += 1
-                    self.pupdate.emit(self.count)
+                 async with lock:
+                    self.count += 1
+                self.pupdate.emit(self.count)
 
     async def check_for_cooldown(self):
         """Check if we need to pause due to consecutive errors"""
         if self.consecutive_errors >= self.max_errors_before_pause:
             cooldown_time = 15  # 15 seconds
             self.update.emit(f"\n🛑 COOLDOWN: {self.consecutive_errors} errors in a row detected!")
-            self.update.emit(f"⏸️  Pausing for {cooldown_time} seconds to avoid being blocked...")
-            
+            self.update.emit(f"⏸️ Pausing for {cooldown_time} seconds to avoid being blocked...")
             for remaining in range(cooldown_time, 0, -1):
                 if not self.running:  # Allow user to stop during cooldown
                     break
                 self.update.emit(f"⏳ Resuming in {remaining} seconds...")
                 await asyncio.sleep(1)
-            
             self.update.emit(f"✅ Cooldown complete! Continuing...\n")
             self.consecutive_errors = 0  # Reset counter after cooldown
 
     async def main(self):
         sem = asyncio.Semaphore(2)  # Max 2 concurrent requests
         lock = asyncio.Lock()
-
         headers = {
             "User-Agent": self.user_agent,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -397,22 +408,40 @@ class Checker(QThread):
             "Sec-Fetch-Site": "none",
             "Cache-Control": "max-age=0"
         }
-
         # Use custom DNS resolver to avoid DNS issues
         connector = aiohttp.TCPConnector(
-            limit=2, 
+            limit=2,
             ssl=False,  # Disable SSL verification if needed
             family=0,  # Allow both IPv4 and IPv6
             ttl_dns_cache=300
         )
         timeout = aiohttp.ClientTimeout(total=30, connect=15)
-        
         async with aiohttp.ClientSession(headers=headers, connector=connector, timeout=timeout) as session:
             for i, username in enumerate(self.usernames):
                 if not self.running:
                     break
                 await self.check_user(username, sem, session, lock, i)
                 await asyncio.sleep(2.5)  # Delay to avoid rate limits
+
+    def send_to_discord(self, username):
+        if not self.webhook_url:
+            return
+        try:
+            webhook_data = {
+                "embeds": [{
+                    "title": "Available TikTok Username Found!",
+                    "description": f"**@{username}** is available!",
+                    "color": 16711680,
+                    "fields": [{"name": "Link", "value": f"https://tiktok.com/@{username}"}],
+                    "footer": {"text": "TikTok Checker"}
+                }]
+            }
+            response = requests.post(self.webhook_url, json=webhook_data, timeout=5)
+            if response.status_code == 204 and self.debug:
+                self.update.emit(f"[WEBHOOK] Sent {username}")
+        except Exception as e:
+            if self.debug:
+                self.update.emit(f"[WEBHOOK ERROR] {str(e)}")
 
 # ------------------- GUI App ------------------- #
 class App(QMainWindow):
@@ -442,14 +471,36 @@ class App(QMainWindow):
         info_group = QGroupBox("ℹ️ About TikTok Username Checker")
         info_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         info_layout = QVBoxLayout()
-        
-        instruction = QLabel("✨ No login required! This checker works without TikTok cookies.\n⚠️ Note: TikTok may rate limit or block requests. If you get connection errors:\n   • Try using a VPN\n   • Use mobile hotspot instead of WiFi\n   • Wait 5-10 minutes and try again")
+        instruction = QLabel("✨ No login required! This checker works without TikTok cookies.\n⚠️ Note: TikTok may rate limit or block requests. If you get connection errors:\n • Try using a VPN\n • Use mobile hotspot instead of WiFi\n • Wait 5-10 minutes and try again")
         instruction.setWordWrap(True)
         instruction.setStyleSheet("background-color: #e7f3ff; padding: 10px; border-radius: 3px; color: #004085;")
         info_layout.addWidget(instruction)
-        
         info_group.setLayout(info_layout)
         main_layout.addWidget(info_group)
+
+        # Webhook Section - added
+        webhook_group = QGroupBox("🔔 Discord Webhook (Optional)")
+        webhook_group.setStyleSheet("QGroupBox { font-weight: bold; }")
+        webhook_layout = QVBoxLayout()
+        
+        webhook_info = QLabel("💬 Paste your Discord webhook URL to get notified when available usernames are found!")
+        webhook_info.setWordWrap(True)
+        webhook_info.setStyleSheet("background-color: #f8d7da; padding: 8px; border-radius: 3px; color: #721c24;")
+        webhook_layout.addWidget(webhook_info)
+        
+        webhook_input_layout = QHBoxLayout()
+        self.webhook_input = QLineEdit()
+        self.webhook_input.setPlaceholderText("https://discord.com/api/webhooks/...")
+        webhook_input_layout.addWidget(self.webhook_input)
+        
+        test_webhook_btn = QPushButton("🧪 Test")
+        test_webhook_btn.setMaximumWidth(80)
+        test_webhook_btn.clicked.connect(self.test_webhook)
+        webhook_input_layout.addWidget(test_webhook_btn)
+        
+        webhook_layout.addLayout(webhook_input_layout)
+        webhook_group.setLayout(webhook_layout)
+        main_layout.addWidget(webhook_group)
 
         # Generator Section
         gen_group = QGroupBox("Step 1: Generate Random Usernames (Optional)")
@@ -462,27 +513,23 @@ class App(QMainWindow):
         self.length_input = QLineEdit("5")
         self.length_input.setMaximumWidth(60)
         row1.addWidget(self.length_input)
-        
         row1.addWidget(QLabel("Prefix:"))
         self.prefix_input = QLineEdit()
         self.prefix_input.setPlaceholderText("e.g., og")
         self.prefix_input.setMaximumWidth(100)
         row1.addWidget(self.prefix_input)
-        
         row1.addWidget(QLabel("Suffix:"))
         self.suffix_input = QLineEdit()
         self.suffix_input.setPlaceholderText("e.g., .tt")
         self.suffix_input.setMaximumWidth(100)
         row1.addWidget(self.suffix_input)
-        
         row1.addWidget(QLabel("Count:"))
         self.count_input = QLineEdit("10")
         self.count_input.setMaximumWidth(60)
         row1.addWidget(self.count_input)
-        
         row1.addStretch()
         gen_layout.addLayout(row1)
-        
+
         # Second row - pattern options
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("Pattern:"))
@@ -491,25 +538,22 @@ class App(QMainWindow):
             "Letters only (abc)",
             "Letters + Numbers (a1b2)",
             "Numbers + Letters (12ab)",
+            "Numbers only (1234)",  # added
             "Letters_Letters (abc_def)",
             "Prefix_Letters (og_abc)",
             "Letters_Suffix (abc_og)"
         ])
         self.pattern_combo.setMaximumWidth(200)
         row2.addWidget(self.pattern_combo)
-        
         self.gen_button = QPushButton("🎲 Generate")
         self.gen_button.clicked.connect(self.generate_usernames)
         self.gen_button.setStyleSheet("background-color: #00f2ea; color: black; padding: 8px; font-weight: bold;")
         row2.addWidget(self.gen_button)
-        
         self.debug_checkbox = QCheckBox("🐛 Debug Mode (Detailed)")
         self.debug_checkbox.setToolTip("Show detailed analysis of each username")
         row2.addWidget(self.debug_checkbox)
-        
         row2.addStretch()
         gen_layout.addLayout(row2)
-        
         gen_group.setLayout(gen_layout)
         main_layout.addWidget(gen_group)
 
@@ -518,22 +562,18 @@ class App(QMainWindow):
         io_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         io_layout = QHBoxLayout()
         
-        # Input side
         input_box = QVBoxLayout()
         input_label = QLabel("📝 Usernames to Check:")
         input_label.setStyleSheet("font-weight: bold;")
         input_box.addWidget(input_label)
-        
         self.input_text = QTextEdit()
         self.input_text.setPlaceholderText("Enter usernames here\n(one per line)\n\nExample:\ncoolname\nawesomeuser\nviral123\n\n⚠️ No @ symbol needed")
         input_box.addWidget(self.input_text)
         
-        # Output side
         output_box = QVBoxLayout()
         output_label = QLabel("📊 Results:")
         output_label.setStyleSheet("font-weight: bold;")
         output_box.addWidget(output_label)
-        
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
         self.output_text.setStyleSheet("background-color: #1a1a1a; color: #00f2ea; font-family: Consolas, Monaco, monospace; padding: 10px;")
@@ -546,7 +586,6 @@ class App(QMainWindow):
 
         # Control Buttons
         btn_layout = QHBoxLayout()
-        
         self.start_button = QPushButton("▶️ START CHECKING")
         self.start_button.clicked.connect(self.start_clicked)
         self.start_button.setStyleSheet("background-color: #00f2ea; color: black; font-weight: bold; padding: 15px; font-size: 14px;")
@@ -596,23 +635,22 @@ class App(QMainWindow):
             username = ""
             
             if pattern == "Letters only (abc)":
-                # Just random letters
                 username = "".join(random.choice(string.ascii_lowercase) for _ in range(length))
             
             elif pattern == "Letters + Numbers (a1b2)":
-                # Mix of letters and numbers
                 chars = string.ascii_lowercase + string.digits
                 username = "".join(random.choice(chars) for _ in range(length))
             
             elif pattern == "Numbers + Letters (12ab)":
-                # Start with numbers, then letters
                 num_count = random.randint(1, max(1, length - 2))
                 letter_count = length - num_count
                 username = "".join(random.choice(string.digits) for _ in range(num_count))
                 username += "".join(random.choice(string.ascii_lowercase) for _ in range(letter_count))
             
+            elif pattern == "Numbers only (1234)":
+                username = "".join(random.choice(string.digits) for _ in range(length))
+            
             elif pattern == "Letters_Letters (abc_def)":
-                # Two parts separated by underscore
                 part1_len = length // 2
                 part2_len = length - part1_len
                 part1 = "".join(random.choice(string.ascii_lowercase) for _ in range(part1_len))
@@ -620,28 +658,22 @@ class App(QMainWindow):
                 username = f"{part1}_{part2}"
             
             elif pattern == "Prefix_Letters (og_abc)":
-                # Use prefix field + underscore + random letters
                 if prefix:
                     letters = "".join(random.choice(string.ascii_lowercase) for _ in range(length))
                     username = f"{prefix}_{letters}"
                 else:
-                    # Fallback if no prefix
                     username = "".join(random.choice(string.ascii_lowercase) for _ in range(length))
             
             elif pattern == "Letters_Suffix (abc_og)":
-                # Random letters + underscore + suffix field
                 if suffix:
                     letters = "".join(random.choice(string.ascii_lowercase) for _ in range(length))
                     username = f"{letters}_{suffix}"
                 else:
-                    # Fallback if no suffix
                     username = "".join(random.choice(string.ascii_lowercase) for _ in range(length))
             
-            # Add prefix and suffix if provided (for non-pattern modes)
             if pattern in ["Letters only (abc)", "Letters + Numbers (a1b2)", "Numbers + Letters (12ab)"]:
                 username = prefix + username + suffix
             
-            # Make sure it's valid (TikTok allows underscores and dots)
             if username and username.replace('_', '').replace('.', '').isalnum():
                 generated.append(username)
 
@@ -660,6 +692,7 @@ class App(QMainWindow):
         
         ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         debug = self.debug_checkbox.isChecked()
+        webhook_url = self.webhook_input.text().strip() or None
         
         self.progress_bar.setMaximum(len(usernames))
         self.progress_bar.setValue(0)
@@ -669,7 +702,7 @@ class App(QMainWindow):
         self.status_label.setText(f"🔄 Checking {len(usernames)} usernames...")
         self.status_label.setStyleSheet("padding: 8px; font-weight: bold; background-color: #fff9c4; border-radius: 3px;")
 
-        self.thread = Checker(usernames, ua, debug)
+        self.thread = Checker(usernames, ua, debug, webhook_url)
         self.thread.update.connect(self.update_text)
         self.thread.pupdate.connect(self.update_progress)
         self.thread.finished.connect(self.checking_finished)
@@ -705,13 +738,40 @@ class App(QMainWindow):
         usernames = []
         for line in txt.splitlines():
             u = line.strip().lower()
-            # Remove @ if present
             if u.startswith('@'):
                 u = u[1:]
-            # TikTok allows letters, numbers, underscores, and dots
             if u and u.replace('_', '').replace('.', '').isalnum():
                 usernames.append(u)
         return usernames
+
+    def test_webhook(self):
+        webhook_url = self.webhook_input.text().strip()
+        
+        if not webhook_url:
+            QMessageBox.warning(self, "No Webhook", "Please enter a webhook URL first!")
+            return
+        
+        try:
+            test_data = {
+                "embeds": [{
+                    "title": "🧪 Test Message",
+                    "description": "Your webhook is working correctly!",
+                    "color": 5763719,
+                    "footer": {
+                        "text": "TikTok Username Checker - Webhook Test"
+                    }
+                }]
+            }
+            
+            response = requests.post(webhook_url, json=test_data, timeout=5)
+            
+            if response.status_code == 204:
+                QMessageBox.information(self, "Success", "✅ Webhook test successful!\nCheck your Discord channel.")
+            else:
+                QMessageBox.warning(self, "Failed", f"❌ Webhook test failed!\nStatus code: {response.status_code}")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"❌ Failed to send test message:\n{str(e)}")
 
 # ------------------- Run ------------------- #
 if __name__ == "__main__":
