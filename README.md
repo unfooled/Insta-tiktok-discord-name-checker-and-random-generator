@@ -74,7 +74,7 @@ Note: This script is not made to spam TikTok with change requests.
 
 Install the required dependencies:
 ```
-pip install -r requirements_txt.txt
+pip install -r requirements.txt
 ```
 
 ## Known Issues
