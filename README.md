@@ -1,4 +1,9 @@
-# UPDATEEEEEE
+## Most of its made by ai i know some people dont like idgaf most of the current script are outdated and dont work soo yea i made my own with ai cus im like that
+
+
+# New update
+
+added steam and psn checkers (the psn one is scuffed asf theres some false positives like if a account is banned it says is available or some that are private cannot be detected nothing much i can fix) the steam one works perfect
 
 Updated so now the tik tok username checker works 
 
@@ -8,10 +13,7 @@ now you can "auto claim usernames" the script gets your session id/cookies that 
 What it does is emulates a broswer logs in see if the username is applyable and if not just skips to another username
 ### you can pair this with the tik tok username checker and on the webhook you put to send the users you get and on the new script you create a bot (the script has a step by step how to mkae one bot) andthe bot every 5s checks for new user the first script sends that are available and tries to claim them on your broswer
 
-## YOU NEED CHROME INSTALLED BTW
-
-
-# uhhh i kinda "made" this name checker for some apps and plan on adding youtube and roblox 
+## YOU NEED CHROME INSTALLED BTW 
 
 
 ## Most of its made by ai i know some people dont like idgaf most of the current script are outdated and dont work soo yea i made my own with ai cus im like that
