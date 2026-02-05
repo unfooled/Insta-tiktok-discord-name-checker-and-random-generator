@@ -31,7 +31,7 @@ All checkers include:
 - Same generation features as other checkers
 
 ### Roblox Checker
-- Auto account creation feature using code from qing762/roblox-auto-signup
+- Auto account creation feature using code from [qing762/roblox-auto-signup](https://github.com/qing762/roblox-auto-signup)
 - Username availability checking
 - Webhook notifications
 - Random name generation
