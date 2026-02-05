@@ -1,50 +1,87 @@
-## Most of its made by ai i know some people dont like idgaf most of the current script are outdated and dont work soo yea i made my own with ai cus im like that
+# Username Checker and Auto Claimer
 
+A collection of username availability checkers for Instagram, TikTok, Discord, Roblox, GitHub, Steam, and PSN. Most of the code was made with AI assistance because I wanted to create something that actually works since most of the current scripts out there are outdated.
 
-# New update
+## Features
 
-added steam and psn checkers (the psn one is scuffed asf theres some false positives like if a account is banned it says is available or some that are private cannot be detected nothing much i can fix) the steam one works perfect
+All checkers include:
+- Username availability checking
+- Random username generation
+- Custom prefix support for generated names
+- Webhook notifications for available usernames
 
-Updated so now the tik tok username checker works 
+## Available Checkers
 
-## NEW auto tik tok name claimer!!!
+### Instagram Checker
+- Requires Instagram account token
+- Check any username availability
+- Generate random usernames with optional prefixes
+- Built-in cooldown system to bypass API blocks
+- No proxy needed since Instagram's API is pretty chill
 
-now you can "auto claim usernames" the script gets your session id/cookies that you can get by installing https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm and copying the json file to the txt file and the script ### is not made to spam request tik tok to chnage the user
-What it does is emulates a broswer logs in see if the username is applyable and if not just skips to another username
-### you can pair this with the tik tok username checker and on the webhook you put to send the users you get and on the new script you create a bot (the script has a step by step how to mkae one bot) andthe bot every 5s checks for new user the first script sends that are available and tries to claim them on your broswer
+### TikTok Checker
+- No token or cookies required
+- Check username availability
+- Generate random usernames
+- Note: If a username shows as available but you can't claim it, the account was likely deleted and you need to wait up to 30 days
 
-## YOU NEED CHROME INSTALLED BTW 
+### Discord Checker
+- Discord API blocks after 3-4 searches, so proxies are recommended
+- Includes a no-proxy version but it's slower
+- Same generation features as other checkers
 
+### Roblox Checker
+- Auto account creation feature using code from qing762/roblox-auto-signup
+- Username availability checking
+- Webhook notifications
+- Random name generation
 
-## Most of its made by ai i know some people dont like idgaf most of the current script are outdated and dont work soo yea i made my own with ai cus im like that
+### GitHub Checker
+- Check GitHub username availability
 
-## Some problems with the script il maybe fix maybe not:
- when script gives a error like bad proxy it wont show the error and you need to copy and paste on another typer to know the error(i think i fixed ts)
- Some times on the tik tok checker a name might say its available but it aint when you try to change to it thats because the account was deleted
- (wait for the username to be available (name get locked for 30 days)) (ONLY FOR THE TIK TOK ONE I THINK)
+### Steam Checker
+- Works perfectly for checking Steam IDs
 
-## Instagram checker features and uhh down sides
- You need a instagram account token (if you idk how to get that search it up fatass (sorry))
- you can check any name available
- can generate names like ug4h or hg_fj 
- Our you can add a prefir like og soo it makes:og45 or og_45
- if you get blocked by the instagram api i gives a cooldown to bypass
- No need for a proxy since instagram is chill like that fr
+### PSN Checker
+- Some false positives (banned accounts may show as available, private accounts can't be detected)
+- I can't really fix these issues, it's just how their API works
 
-## Tik tok checker Features and uhh
+## TikTok Auto Claimer
 
- Same shit as the instagram one but you DONT need a cookie/token yay
- if the name says available and you try to put it and dosent go it cus the account was deleted and you have to wait 30 days to get the username or lower depends when the account was deleted
- and yea 
+Automatically attempts to claim TikTok usernames as they become available.
 
-## Discord checker features and down sides ig
- discord api sucks and blocks you after like 3-4 seraches soo your better off with proxys yea
- has the same features as the instagram and tik tok
- has a no proxy version implemented but its gonna be a pain to search names
-### :3 
-## added roblox checker
-has auto create account from: https://github.com/qing762/roblox-auto-signup credts
+### Requirements
+- Chrome browser installed
+- Cookie Editor extension: https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm
 
-name checker
-and webhook to know what are available
-and others features from the other like generator
+### How it Works
+1. Gets your session ID/cookies from the Cookie Editor extension
+2. Emulates a browser session
+3. Logs in and checks if the username is available
+4. If available, attempts to claim it
+5. If not available, moves to the next username
+
+### Pro Tip
+Pair this with the TikTok username checker:
+1. Set up the checker to send available usernames to a webhook
+2. Create a Discord bot (the script has step-by-step instructions)
+3. The bot checks every 5 seconds for new available usernames
+4. Automatically tries to claim them in your browser
+
+Note: This script is not made to spam TikTok with change requests.
+
+## Installation
+
+Install the required dependencies:
+```
+pip install -r requirements_txt.txt
+```
+
+## Known Issues
+
+- When the script gives a proxy error, you might need to copy and paste the error message to see the full details (I think I fixed this)
+- TikTok usernames might show as available but can't be claimed if the account was recently deleted (30-day lock period)
+
+## Credits
+
+Roblox auto account creation based on: https://github.com/qing762/roblox-auto-signup
