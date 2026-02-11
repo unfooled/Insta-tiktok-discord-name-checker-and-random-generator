@@ -8,7 +8,7 @@ from PyQt5.QtGui import QFont
 # ---------------------------------------------------------------------------
 try:
     from psnawp_api import PSNAWP
-    from psnawp_api.models.user import User          # raised on bad online_id
+    from psnawp_api.models.user import User
     PSNAWP_AVAILABLE = True
 except ImportError:
     PSNAWP_AVAILABLE = False
@@ -19,18 +19,122 @@ class Checker(QThread):
     pupdate = pyqtSignal(int)
     count   = 0
 
-    def __init__(self, usernames, npsso, webhook_url=None, debug=False):
+    def __init__(self, usernames, method="direct", npsso=None, webhook_url=None, debug=False):
         super().__init__()
         self.usernames   = usernames
+        self.method      = method  # "direct" or "psnawp"
         self.npsso       = npsso
         self.webhook_url = webhook_url
         self.running     = True
         self.debug       = debug
-        self.psnawp      = None          # created once in run()
+        self.psnawp      = None
+        
+        # Direct API settings
+        self.api_url = "https://accounts.api.playstation.com/api/v1/accounts/onlineIds"
+        self.api_headers = {
+            "Host": "accounts.api.playstation.com",
+            "Connection": "keep-alive",
+            "sec-ch-ua-platform": "\"Windows\"",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Content-Type": "application/json; charset=UTF-8",
+            "Accept": "*/*",
+            "Origin": "https://id.sonyentertainmentnetwork.com",
+            "Referer": "https://id.sonyentertainmentnetwork.com/",
+            "Accept-Language": "en-US,en;q=0.9"
+        }
 
     # ------------------------------------------------------------------
     def run(self):
-        # ---- 1.  Initialise PSNAWP (token exchange happens here) -----
+        if self.method == "psnawp":
+            self.run_psnawp()
+        else:
+            self.run_direct()
+
+    # ------------------------------------------------------------------
+    def run_direct(self):
+        """Direct API method - no auth required"""
+        self.update.emit("[INFO] Using Direct API (no authentication required)")
+        
+        for username in self.usernames:
+            if not self.running:
+                break
+            self.check_user_direct(username)
+            self.count += 1
+            self.pupdate.emit(self.count)
+            time.sleep(1.2)  # Slower rate to avoid 429 errors
+
+    # ------------------------------------------------------------------
+    def check_user_direct(self, username):
+        """Check username using direct Sony API"""
+        if not self.running:
+            return
+        
+        payload = {
+            "onlineId": username,
+            "reserveIfAvailable": False
+        }
+        
+        try:
+            response = requests.post(self.api_url, json=payload, headers=self.api_headers, timeout=10)
+            status = response.status_code
+            
+            if self.debug:
+                self.update.emit(f"[DEBUG] {username} → HTTP {status}")
+            
+            # Available
+            if status in (200, 201):
+                self.update.emit(f"[AVAILABLE] {username}")
+                if self.webhook_url:
+                    self.send_to_discord(username)
+            
+            # Taken or invalid
+            elif status == 400:
+                try:
+                    data = response.json()
+                    header_code = response.headers.get("X-ErrorCode", "")
+                    body_code = data[0].get("code", "") if isinstance(data, list) and data else ""
+                    
+                    if header_code == "accounts:3101" or body_code == "3101":
+                        self.update.emit(f"[TAKEN] {username}")
+                    elif body_code == "1100":
+                        self.update.emit(f"[INVALID PATTERN] {username}")
+                    elif body_code == "3208":
+                        self.update.emit(f"[IMPROPER/RESTRICTED] {username}")
+                    else:
+                        if self.debug:
+                            self.update.emit(f"[ERROR] {username}: {data}")
+                        else:
+                            self.update.emit(f"[ERROR] {username}: Unknown 400 error")
+                except Exception as e:
+                    self.update.emit(f"[ERROR] {username}: Could not parse response")
+            
+            # Rejected by policy
+            elif status == 406:
+                self.update.emit(f"[REJECTED/RESTRICTED] {username}")
+            
+            # Rate limited
+            elif status == 429:
+                self.update.emit(f"[RATE LIMIT] {username} – waiting 10s...")
+                time.sleep(10)
+                self.check_user_direct(username)  # Retry once
+            
+            # Other errors
+            else:
+                self.update.emit(f"[HTTP {status}] {username}")
+                
+        except requests.Timeout:
+            self.update.emit(f"[TIMEOUT] {username}")
+        except requests.RequestException as e:
+            self.update.emit(f"[REQUEST ERROR] {username}: {e}")
+        except Exception as e:
+            if self.debug:
+                self.update.emit(f"[ERROR] {username}:\n{traceback.format_exc()}")
+            else:
+                self.update.emit(f"[ERROR] {username}: {e}")
+
+    # ------------------------------------------------------------------
+    def run_psnawp(self):
+        """PSNAWP method - requires npsso token"""
         try:
             self.psnawp = PSNAWP(self.npsso)
             if self.debug:
@@ -39,32 +143,23 @@ class Checker(QThread):
             self.update.emit(f"[AUTH ERROR] Failed to authenticate with PSN.\n"
                              f"  • Make sure your npsso token is fresh (< 24 h old).\n"
                              f"  • Detail: {e}")
-            return                        # nothing more we can do
+            return
 
-        # ---- 2.  Loop through usernames --------------------------------
         for username in self.usernames:
             if not self.running:
                 break
-            self.check_user(username)
+            self.check_user_psnawp(username)
             self.count += 1
             self.pupdate.emit(self.count)
-            time.sleep(0.6)               # gentle rate-limit (PSN is strict)
+            time.sleep(0.6)
 
     # ------------------------------------------------------------------
-    def stop(self):
-        self.running = False
-
-    # ------------------------------------------------------------------
-    def check_user(self, username):
+    def check_user_psnawp(self, username):
+        """Check username using PSNAWP library"""
         if not self.running:
             return
         try:
-            # PSNAWP.user() does a real PSN lookup.
-            # If the online_id does NOT exist it raises an exception
-            # whose message contains "User not found" (or similar).
             user = self.psnawp.user(online_id=username)
-
-            # If we reach here the account exists ──► TAKEN
             if self.debug:
                 self.update.emit(f"[DEBUG] {username} → accountId: {user.account_id}")
             self.update.emit(f"[TAKEN] {username}")
@@ -72,9 +167,6 @@ class Checker(QThread):
         except Exception as e:
             err_text = str(e).lower()
 
-            # ----------------------------------------------------------
-            # PSN "not found" errors – username is genuinely available
-            # ----------------------------------------------------------
             if any(phrase in err_text for phrase in
                    ("not found", "no such user", "does not exist",
                     "invalid online id", "user not found")):
@@ -82,29 +174,24 @@ class Checker(QThread):
                 if self.webhook_url:
                     self.send_to_discord(username)
 
-            # ----------------------------------------------------------
-            # Rate-limited by Sony – back off and retry once
-            # ----------------------------------------------------------
             elif "rate" in err_text or "429" in err_text or "too many" in err_text:
                 self.update.emit(f"[RATE LIMIT] {username} – waiting 15 s …")
                 time.sleep(15)
-                self.check_user(username)   # single retry
+                self.check_user_psnawp(username)
 
-            # ----------------------------------------------------------
-            # Auth token expired mid-run
-            # ----------------------------------------------------------
             elif "401" in err_text or "unauthori" in err_text or "token" in err_text:
                 self.update.emit("[AUTH ERROR] Token expired – please get a fresh npsso and restart.")
                 self.running = False
 
-            # ----------------------------------------------------------
-            # Anything else – log it
-            # ----------------------------------------------------------
             else:
                 if self.debug:
                     self.update.emit(f"[ERROR] {username}:\n{traceback.format_exc()}")
                 else:
                     self.update.emit(f"[ERROR] {username}: {e}")
+
+    # ------------------------------------------------------------------
+    def stop(self):
+        self.running = False
 
     # ------------------------------------------------------------------
     def send_to_discord(self, username):
@@ -132,7 +219,7 @@ class App(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("PlayStation Username Checker")
-        self.setGeometry(150, 150, 1100, 870)
+        self.setGeometry(150, 150, 1100, 900)
         self.thread = None
         self.initUI()
 
@@ -155,9 +242,10 @@ class App(QMainWindow):
 
         # ── PSNAWP install warning (shown only if missing) ───────────
         if not PSNAWP_AVAILABLE:
-            warn = QLabel("⚠️  PSNAWP is not installed.  Run:   pip install PSNAWP   then restart this app.")
+            warn = QLabel("⚠️  PSNAWP is not installed. Direct API will be used (no authentication needed). "
+                         "To use PSNAWP method: pip install PSNAWP")
             warn.setWordWrap(True)
-            warn.setStyleSheet("background-color: #f8d7da; padding: 10px; border-radius: 3px; color: #721c24;")
+            warn.setStyleSheet("background-color: #fff3cd; padding: 10px; border-radius: 3px; color: #856404;")
             main_layout.addWidget(warn)
 
         # ── About ─────────────────────────────────────────────────────
@@ -165,8 +253,9 @@ class App(QMainWindow):
         info_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         info_layout  = QVBoxLayout()
         instruction  = QLabel(
-            "✅ Check PlayStation username availability using the real PSN network.\n"
-            "Requires a fresh npsso token (see instructions below).  "
+            "✅ Check PlayStation username availability.\n"
+            "• Direct API: Fast, no authentication needed (recommended)\n"
+            "• PSNAWP: Requires npsso token, more reliable for edge cases\n"
             "Usernames: 3–16 characters (letters, numbers, hyphens, underscores).")
         instruction.setWordWrap(True)
         instruction.setStyleSheet("background-color: #d4edda; padding: 10px; border-radius: 3px; color: #155724;")
@@ -174,9 +263,23 @@ class App(QMainWindow):
         info_group.setLayout(info_layout)
         main_layout.addWidget(info_group)
 
-        # ── npsso token input ─────────────────────────────────────────
-        api_group  = QGroupBox("PSN Authentication (npsso token – Required)")
-        api_group.setStyleSheet("QGroupBox { font-weight: bold; }")
+        # ── Method selection ──────────────────────────────────────────
+        method_group = QGroupBox("Checking Method")
+        method_group.setStyleSheet("QGroupBox { font-weight: bold; }")
+        method_layout = QVBoxLayout()
+        
+        self.method_radio_direct = QRadioButton("Direct API (Fast - No Auth Required)")
+        self.method_radio_direct.setChecked(True)
+        self.method_radio_psnawp = QRadioButton("PSNAWP Method (Requires npsso token)")
+        
+        method_layout.addWidget(self.method_radio_direct)
+        method_layout.addWidget(self.method_radio_psnawp)
+        method_group.setLayout(method_layout)
+        main_layout.addWidget(method_group)
+
+        # ── npsso token input (only for PSNAWP) ───────────────────────
+        self.api_group  = QGroupBox("PSN Authentication (Only for PSNAWP Method)")
+        self.api_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         api_layout = QVBoxLayout()
 
         api_info = QLabel(
@@ -202,8 +305,12 @@ class App(QMainWindow):
             lambda state: self.api_input.setEchoMode(QLineEdit.Normal if state else QLineEdit.Password))
         api_layout.addWidget(show_api_btn)
 
-        api_group.setLayout(api_layout)
-        main_layout.addWidget(api_group)
+        self.api_group.setLayout(api_layout)
+        main_layout.addWidget(self.api_group)
+        
+        # Disable npsso section by default
+        self.api_group.setEnabled(False)
+        self.method_radio_psnawp.toggled.connect(lambda checked: self.api_group.setEnabled(checked))
 
         # ── Discord webhook ──────────────────────────────────────────
         webhook_group  = QGroupBox("Discord Webhook (Optional)")
@@ -321,7 +428,7 @@ class App(QMainWindow):
                                         " QProgressBar::chunk { background-color: #003087; }")
         main_layout.addWidget(self.progress_bar)
 
-        self.status_label = QLabel("Ready – paste your npsso token to begin.")
+        self.status_label = QLabel("Ready – Direct API method selected (no authentication needed)")
         self.status_label.setStyleSheet("padding: 8px; font-weight: bold;"
                                         " background-color: #e0e0e0; border-radius: 3px;")
         main_layout.addWidget(self.status_label)
@@ -329,8 +436,6 @@ class App(QMainWindow):
         self.debug_checkbox = QCheckBox("Debug mode (shows detailed info)")
         main_layout.addWidget(self.debug_checkbox)
 
-    # ------------------------------------------------------------------
-    # Username generator  (unchanged logic)
     # ------------------------------------------------------------------
     def generate_usernames(self):
         try:
@@ -412,29 +517,36 @@ class App(QMainWindow):
 
     # ------------------------------------------------------------------
     def start_clicked(self):
-        if not PSNAWP_AVAILABLE:
-            QMessageBox.critical(self, "Missing dependency",
-                                 "PSNAWP is not installed.\n\nOpen a terminal and run:\n\n"
-                                 "    pip install PSNAWP\n\nthen restart this app.")
-            return
-
         usernames = self.get_usernames()
         if not usernames:
             QMessageBox.warning(self, "No Usernames", "Please enter or generate usernames to check.")
             return
 
-        npsso = self.api_input.text().strip()
-        if not npsso:
-            QMessageBox.warning(self, "No npsso token",
-                                "You need a fresh npsso token to authenticate with PSN.\n\n"
-                                "Follow the instructions in the \"PSN Authentication\" box above.")
-            return
+        # Determine method
+        use_direct = self.method_radio_direct.isChecked()
+        method = "direct" if use_direct else "psnawp"
+        
+        npsso = None
+        if not use_direct:
+            # PSNAWP method requires npsso
+            if not PSNAWP_AVAILABLE:
+                QMessageBox.critical(self, "Missing dependency",
+                                     "PSNAWP is not installed.\n\nOpen a terminal and run:\n\n"
+                                     "    pip install PSNAWP\n\nthen restart this app.")
+                return
+                
+            npsso = self.api_input.text().strip()
+            if not npsso:
+                QMessageBox.warning(self, "No npsso token",
+                                    "You need a fresh npsso token to use PSNAWP method.\n\n"
+                                    "Follow the instructions in the \"PSN Authentication\" box above.")
+                return
 
-        if len(npsso) != 64:
-            QMessageBox.warning(self, "Invalid npsso",
-                                f"npsso tokens are exactly 64 characters.  "
-                                f"Yours is {len(npsso)} – please double-check it.")
-            return
+            if len(npsso) != 64:
+                QMessageBox.warning(self, "Invalid npsso",
+                                    f"npsso tokens are exactly 64 characters.  "
+                                    f"Yours is {len(npsso)} – please double-check it.")
+                return
 
         debug        = self.debug_checkbox.isChecked()
         webhook_url  = self.webhook_input.text().strip() or None
@@ -445,11 +557,12 @@ class App(QMainWindow):
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
 
-        self.status_label.setText(f"Authenticating & checking {len(usernames)} usernames …")
+        method_name = "Direct API" if use_direct else "PSNAWP"
+        self.status_label.setText(f"Checking {len(usernames)} usernames using {method_name}...")
         self.status_label.setStyleSheet("padding: 8px; font-weight: bold;"
                                         " background-color: #fff9c4; border-radius: 3px;")
 
-        self.thread = Checker(usernames, npsso, webhook_url, debug)
+        self.thread = Checker(usernames, method, npsso, webhook_url, debug)
         self.thread.update.connect(self.update_text)
         self.thread.pupdate.connect(self.update_progress)
         self.thread.finished.connect(self.checking_finished)
