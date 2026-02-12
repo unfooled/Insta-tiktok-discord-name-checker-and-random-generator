@@ -1,87 +1,62 @@
-# Username Checker and Auto Claimer
+# 🎭 Ultimate Username Hunter & Auto-Claimer
+![Version](https://img.shields.io/badge/Version-2.0-blueviolet?style=for-the-badge)
+![Geode](https://img.shields.io/badge/Powered_by-AI_Assistance-green?style=for-the-badge)
+![Discord](https://img.shields.io/badge/Discord-skiesfr-5865F2?style=for-the-badge&logo=discord&logoColor=white)
 
-A collection of username availability checkers for Instagram, TikTok, Discord, Roblox, GitHub, Steam, and PSN. Most of the code was made with AI assistance because I wanted to create something that actually works since most of the current scripts out there are outdated.
+A collection of high-performance username availability checkers and automation tools for **Instagram, TikTok, Discord, Roblox, GitHub, Steam, and PSN**. Built to replace outdated scripts with modern, working API logic.
 
-## Features
+---
 
-All checkers include:
-- Username availability checking
-- Random username generation
-- Custom prefix support for generated names
-- Webhook notifications for available usernames
+## 🚀 Core Features
+* **Availability Checking:** Real-time API pings to verify if a handle is free.
+* **Smart Generation:** Random name generator with **Custom Prefix** support.
+* **Webhook Integration:** Get instant Discord notifications when a "hit" is found.
+* **Auto-Claiming:** Integrated browser emulation to secure names the second they drop.
 
-## Available Checkers
+---
 
-### Instagram Checker
-- Requires Instagram account token
-- Check any username availability
-- Generate random usernames with optional prefixes
-- Built-in cooldown system to bypass API blocks
-- No proxy needed since Instagram's API is pretty chill
+## 🔍 Supported Platforms & Technical Details
 
-### TikTok Checker
-- No token or cookies required
-- Check username availability
-- Generate random usernames
-- Note: If a username shows as available but you can't claim it, the account was likely deleted and you need to wait up to 30 days
+### 📸 Instagram
+- **Method:** Requires Account Token.
+- **Cool-down:** Built-in bypass system.
+- **Note:** No proxies required; the API is stable.
 
-### Discord Checker
-- Discord API blocks after 3-4 searches, so proxies are recommended
-- Includes a no-proxy version but it's slower
-- Same generation features as other checkers
+### 🎵 TikTok & Auto-Claimer
+- **Method:** Browser Emulation (Chrome) + Session ID.
+- **Auto-Claimer:** Pairs with a Discord Bot to check webhooks every 5s and claim via browser.
+- > ⚠️ **CRITICAL:** If a name shows available but won't claim, it’s likely a recently deleted account (30-day lock period applies).
 
-### Roblox Checker
-- Auto account creation feature using code from [qing762/roblox-auto-signup](https://github.com/qing762/roblox-auto-signup)
-- Username availability checking
-- Webhook notifications
-- Random name generation
+### 💬 Discord
+- **Warning:** API blocks after 3-4 searches.
+- **Setup:** Includes a "No-Proxy" slow mode, but **Proxies are highly recommended**.
 
-### GitHub Checker
-- Check GitHub username availability
+### 🤖 Roblox
+- **Special Feature:** Includes **Auto-Account Creation** (Logic by `qing762/roblox-auto-signup`).
+- **Automation:** Full webhook support and name generation.
 
-### Steam Checker
-- Works perfectly for checking Steam IDs
+### 🐙 GitHub & 💨 Steam
+- **Status:** 100% Functional. Great for finding short IDs and rare handles.
 
-### PSN Checker
-- Some false positives (banned accounts may show as available, private accounts can't be detected)
-- I can't really fix these issues, it's just how their API works
+### 🎮 PSN (PlayStation Network)
+- **Known Issue:** Banned accounts may show as "Available" (False Positive).
+- **Limit:** Private accounts cannot be detected due to Sony's API privacy.
 
-## TikTok Auto Claimer
+---
 
-Automatically attempts to claim TikTok usernames as they become available.
+## 🛠 Setup & Requirements
 
-### Requirements
-- Chrome browser installed
-- Cookie Editor extension: https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm
+### 1. Browser Configuration
+- **Browser:** [Google Chrome](https://www.google.com/chrome/) (Required for Auto-Claimer).
+- **Extension:** [Cookie Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm) to export Session IDs.
 
-### How it Works
-1. Gets your session ID/cookies from the Cookie Editor extension
-2. Emulates a browser session
-3. Logs in and checks if the username is available
-4. If available, attempts to claim it
-5. If not available, moves to the next username
+### 2. Installation
+```bash
+# Clone the repo
+git clone [https://github.com/unfooled/Insta-tiktok-discord-name-checker-and-random-generator.git](https://github.com/unfooled/Insta-tiktok-discord-name-checker-and-random-generator.git)
 
-### Pro Tip
-Pair this with the TikTok username checker:
-1. Set up the checker to send available usernames to a webhook
-2. Create a Discord bot (the script has step-by-step instructions)
-3. The bot checks every 5 seconds for new available usernames
-4. Automatically tries to claim them in your browser
-
-Note: This script is not made to spam TikTok with change requests.
-
-## Installation
-
-Install the required dependencies:
-```
+# Install dependencies
 pip install -r requirements.txt
-```
 
-## Known Issues
-
-- When the script gives a proxy error, you might need to copy and paste the error message to see the full details (I think I fixed this)
-- TikTok usernames might show as available but can't be claimed if the account was recently deleted (30-day lock period)
-
-## Credits
-
-Roblox auto account creation based on: https://github.com/qing762/roblox-auto-signup
+# Run the tool
+python main.py
