@@ -1,14 +1,13 @@
-# 🔍 Name checker & Auto-Claimer
+# 🔍 Name Hunter & Auto-Claimer
 
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
-![Status](https://img.shields.io/badge/Status-Active-brightgreen?style=for-the-badge)
 ![Discord](https://img.shields.io/badge/Discord-skiesfr-5865F2?style=for-the-badge&logo=discord&logoColor=white)
 
-Most name checkers on GitHub are straight garbage or haven't been updated since 2020. I built this because I wanted something that actually hits. **AI helped me through the project** to make sure the logic doesn't break when the APIs change.
+Most name checkers out there are outdated and don't actually hit. I built this for fun because I wanted something that works. **AI helped me through the project** to keep the logic updated with current APIs.
 
 ---
 
-## 📱 What it supports
+## 📱 Platforms
 | Platform | Icon | Platform | Icon |
 | :--- | :---: | :--- | :---: |
 | **Instagram** | 📸 | **TikTok** | 🎵 |
@@ -18,51 +17,49 @@ Most name checkers on GitHub are straight garbage or haven't been updated since 
 
 ---
 
-## ⚡ The Goodies
-* **Fast as hell:** High-speed API pings so you don't miss out on drops.
-* **Name Gen:** Random generator with custom prefixes for OG handles.
-* **Webhooks:** Sends hits straight to your Discord so you can see them on your phone.
-* **Auto-Claim:** Snags the names in a browser session the second they're free.
+## ⚡ Features
+* **Availability Checking:** Pings APIs to see if names are free.
+* **Random Generation:** Generates names with custom prefixes.
+* **Webhook Notifications:** Sends available names to your Discord.
+* **Auto-Claimer:** Attempts to snag names in your browser session.
 
 ---
 
-## 🔍 The Lowdown (Don't skip this)
+## 🔍 How it works
 
 ### 📸 Instagram
-- Needs an account token to work.
-- Has a built-in cooldown so you don't get cooked by rate-limits.
-- No proxies needed, the IG API is pretty chill.
+- Needs an account token.
+- Has a built-in cooldown so you don't get blocked.
+- No proxies needed.
 
-### 🎵 TikTok & Claimer
-- No token needed just to check if names are free.
-- **Auto-Claimer:** Uses Chrome + Cookie Editor to move like a real user.
-- > ⚠️ **FYI:** If a name looks available but won't claim, it’s probably a deleted account. You gotta wait for that 30-day lock to expire before it's actually snagable.
+### 🎵 TikTok & Auto-Claimer
+- No token or cookies needed just to check availability.
+- **Auto-Claimer:** Emulates a browser session using your Chrome cookies.
+- > ⚠️ **Note:** If a name shows available but you can't claim it, the account was likely recently deleted and you have to wait for the 30-day lock period.
 
 ### 💬 Discord
-- Supports the new username system.
-- **Heads up:** Discord is strict. Their API will block you after 3-4 tries, so **use proxies** or it'll be slow as hell.
+- Works with the new username system.
+- Discord blocks you after 3-4 searches, so **proxies are recommended**. There's a no-proxy version but it's slow.
 
 ### 🤖 Roblox
-- Has **Auto-Account Creation** (Shoutout to `qing762` for the signup logic).
-- Full webhook and random gen support.
+- Features auto account creation (code from `qing762/roblox-auto-signup`).
+- Checks availability and sends webhook alerts.
 
 ### 🐙 GitHub & 💨 Steam
-- Works 100%. Good for hunting 3-letter IDs.
+- Works without any issues.
 
 ### 🎮 PSN (PlayStation)
-- Sony's API is weird. Banned accounts might show as "Available" (False Positive). 
-- Can't see private accounts, nothing I can do about that.
+- **Fixed:** Uses the actual PSN API now. Banned and private accounts are no longer an issue.
 
 ---
 
 ## 🛠 Setup
 
-### 1. Browser Stuff (For Claiming)
-* Get [Google Chrome](https://www.google.com/chrome/).
-* Get [Cookie Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm) to grab your session info.
+### 1. Requirements
+* [Google Chrome](https://www.google.com/chrome/) installed.
+* [Cookie Editor](https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm) extension to get your session ID.
 
 ### 2. Install
 ```bash
-git clone [https://github.com/unfooled/Insta-tiktok-discord-name-checker-and-random-generator.git](https://github.com/unfooled/Insta-tiktok-discord-name-checker-and-random-generator.git)
 pip install -r requirements.txt
 python main.py
