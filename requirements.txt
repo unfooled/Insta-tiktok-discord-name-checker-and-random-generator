@@ -14,6 +14,43 @@ brotli>=1.1.0
 selenium>=4.15.0
 webdriver-manager>=4.0.1
 
+# PSN checker
+psnawp_api>=1.3.0
+
+# Roblox auto-signup (browser automation)
+DrissionPage>=4.0.0
+
+# Additional standard libraries are built-in:
+# - asyncio (built-in)
+# - sys (built-in)
+# - random (built-in)
+# - string (built-in)
+# - re (built-in)
+# - json (built-in)
+# - traceback (built-in)
+# - time (built-in)
+# - datetime (built-in)# GUI Framework (used by all checkers)
+PyQt5>=5.15.0
+
+# HTTP Requests - Async
+aiohttp>=3.9.0
+
+# HTTP Requests - Synchronous
+requests>=2.31.0
+
+# Compression (for aiohttp)
+brotli>=1.1.0
+
+# Selenium for TikTok Auto Claimer
+selenium>=4.15.0
+webdriver-manager>=4.0.1
+
+# PSN checker
+psnawp_api>=1.3.0
+
+# Roblox auto-signup (browser automation)
+DrissionPage>=4.0.0
+
 # Additional standard libraries are built-in:
 # - asyncio (built-in)
 # - sys (built-in)
