@@ -1,3 +1,12 @@
+# ASCII Art Title
+ascii_title = (
+    "                                               \n"
+    "  ____   ____   ____      ____   ____   ____  \n"
+    " /  _ \\ / ___\\ /  _ \\    / ___\\_/ __ \\ /    \\ \n"
+    "(  <_> ) /_/  >  <_> )  / /_/  >  ___/|   |  \\ \n"
+    " \\____/\\___  / \\____/   \\___  / \\___  >___|  /\n"
+    "      /_____/          /_____/      \\/     \\/ \n"
+)
 # Word Generator Script
 # Requirements: Python 3.x
 # This script generates a list of real English words (one per line) into a text file.
@@ -5,9 +14,12 @@
 
 def download_wordlist(url):
     import urllib.request
-    response = urllib.request.urlopen(url)
-    data = response.read().decode("utf-8")
-    return data.splitlines()
+    try:
+        response = urllib.request.urlopen(url, timeout=10)
+        data = response.read().decode("utf-8")
+        return data.splitlines(), None
+    except Exception as e:
+        return None, str(e)
 
 
 import os
@@ -36,38 +48,58 @@ def ensure_colorama():
 def main():
     ensure_colorama()
     from colorama import Fore, Style
+    def get_int_input(prompt, mini=None, maxi=None, allow_zero=False):
+        while True:
+            val = input(Fore.YELLOW + prompt)
+            if not val.strip():
+                print(Fore.RED + "Input cannot be empty. Please try again.\n")
+                continue
+            if not val.isdigit() and not (val.startswith('-') and val[1:].isdigit()):
+                print(Fore.RED + "Please enter a valid integer.\n")
+                continue
+            num = int(val)
+            if num < 0 or (not allow_zero and num == 0):
+                print(Fore.RED + "Please enter a positive integer.\n")
+                continue
+            if mini is not None and num < mini:
+                print(Fore.RED + f"Value must be at least {mini}.\n")
+                continue
+            if maxi is not None and num > maxi:
+                print(Fore.RED + f"Value must be at most {maxi}.\n")
+                continue
+            return num
 
     min_len = None
     max_len = None
     amount = None
 
-
-    ascii_title = (
-        "                                               \n"
-        "  ____   ____   ____      ____   ____   ____  \n"
-        " /  _ \\ / ___\\ /  _ \\    / ___\\_/ __ \\ /    \\ \n"
-        "(  <_> ) /_/  >  <_> )  / /_/  >  ___/|   |  \\ \n"
-        " \\____/\\___  / \\____/   \\___  / \\___  >___|  /\n"
-        "      /_____/          /_____/      \\/     \\/ \n"
-    )
-
     # Input minimal word length
-    clear_console()
-    print(Fore.CYAN + Style.BRIGHT + ascii_title)
-    print(Fore.LIGHTBLACK_EX + f"? - ? / ?\n")
-    min_len = int(input(Fore.YELLOW + "Enter minimal word length: "))
+    while True:
+        clear_console()
+        print(Fore.CYAN + Style.BRIGHT + ascii_title)
+        print(Fore.LIGHTBLACK_EX + f"? - ? / ?\n")
+        min_len = get_int_input("Enter minimal word length: ", mini=1)
+        # No need to break, always valid
+        break
 
     # Input maximal word length
-    clear_console()
-    print(Fore.CYAN + Style.BRIGHT + ascii_title)
-    print(Fore.LIGHTBLACK_EX + f"{min_len} - ? / ?\n")
-    max_len = int(input(Fore.YELLOW + "Enter maximal word length: "))
+    while True:
+        clear_console()
+        print(Fore.CYAN + Style.BRIGHT + ascii_title)
+        print(Fore.LIGHTBLACK_EX + f"{min_len} - ? / ?\n")
+        max_len = get_int_input("Enter maximal word length: ", mini=min_len)
+        if max_len < min_len:
+            print(Fore.RED + "Maximal word length cannot be less than minimal word length.\n")
+            continue
+        break
 
     # Input amount
-    clear_console()
-    print(Fore.CYAN + Style.BRIGHT + ascii_title)
-    print(Fore.LIGHTBLACK_EX + f"{min_len} - {max_len} / ?\n")
-    amount = int(input(Fore.YELLOW + "How many words to generate? "))
+    while True:
+        clear_console()
+        print(Fore.CYAN + Style.BRIGHT + ascii_title)
+        print(Fore.LIGHTBLACK_EX + f"{min_len} - {max_len} / ?\n")
+        amount = get_int_input("How many words to generate? ", mini=1)
+        break
 
     # Final summary before generating
     clear_console()
@@ -75,11 +107,25 @@ def main():
     print(Fore.LIGHTBLACK_EX + f"{min_len} - {max_len} / {amount}\n")
 
     print(Fore.GREEN + "Downloading word list...\n")
-    words = download_wordlist(WORDLIST_URL)
+    words, err = download_wordlist(WORDLIST_URL)
+    if err or not words:
+        print(Fore.RED + "Failed to download word list.")
+        if err:
+            print(Fore.RED + f"Error: {err}\n")
+        print(Fore.YELLOW + "Please check your internet connection or try again later.\n")
+        input(Fore.LIGHTBLACK_EX + "Press Enter to exit...")
+        return
+
+    print(Fore.LIGHTBLACK_EX + f"Total words downloaded: {len(words)}\n")
     filtered = [w for w in words if min_len <= len(w) <= max_len]
+    print(Fore.LIGHTBLACK_EX + f"Words matching length filter: {len(filtered)}\n")
     if len(filtered) < amount:
         print(Fore.RED + f"Warning: Only {len(filtered)} words available with the given length constraints.\n")
         amount = len(filtered)
+    if amount == 0:
+        print(Fore.RED + "No words available for the given constraints. Exiting.\n")
+        input(Fore.LIGHTBLACK_EX + "Press Enter to exit...")
+        return
     selected = random.sample(filtered, amount)
 
     out_path = os.path.join(os.path.dirname(__file__), OUTPUT_FILE)
@@ -87,7 +133,9 @@ def main():
         for word in selected:
             f.write(word + "\n")
 
-    print(Fore.GREEN + f"{amount} words written to {OUTPUT_FILE}\n")
+    print(Fore.GREEN + f"\n{amount} words written to {OUTPUT_FILE}")
+    print(Fore.LIGHTBLACK_EX + f"File location: {out_path}")
+    print(Fore.LIGHTBLACK_EX + f"Number of words written: {len(selected)}\n")
     print(Fore.MAGENTA + "Done!\n")
 
 if __name__ == "__main__":
