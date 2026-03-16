@@ -20,6 +20,7 @@ Most name checkers on GitHub are outdated and don't actually hit anymore. I buil
 | Steam | Checks username availability. | No. |
 | PlayStation | Checks username availability using the official PSN API. | Yes, a PSN NPSSO token is required. |
 | Geometry Dash | Checks username availability. | No. |
+| Minecraft | Checks username availability with rate control. | No. |
 
 ---
 
