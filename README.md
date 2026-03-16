@@ -2,6 +2,7 @@
 
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
 ![Discord](https://img.shields.io/badge/Discord-skiesfr-5865F2?style=for-the-badge&logo=discord&logoColor=white)
+![Discord](https://img.shields.io/badge/Discord-7cf4-5865F2?style=for-the-badge&logo=discord&logoColor=white)
 
 Most name checkers on GitHub are outdated and don't actually hit anymore. I built this project for fun because I wanted something that works with current APIs. AI helped me through the project to make sure the logic is solid and stays updated.
 
