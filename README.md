@@ -1,7 +1,7 @@
 # Universal Username Checker
 
 ![Discord](https://img.shields.io/badge/Discord-skiesfr-5865F2?style=for-the-badge&logo=discord&logoColor=white)
-![Discord](https://img.shields.io/badge/Discord-7cf4-5865F2?style=for-the-badge&logo=discord&logoColor=white)
+![Discord](https://img.shields.io/badge/Discord-o8mu-5865F2?style=for-the-badge&logo=discord&logoColor=white)
 
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
 
@@ -24,6 +24,7 @@ Most name checkers on GitHub are outdated and don't actually hit anymore. I buil
 | Geometry Dash | Checks username availability. | No. |
 | Minecraft | Checks username availability with rate control. | No. |
 | Chess-Lichess | 2 Username checkers in one. | No. |
+| Reddit | Checks username availability. | No. |
 
 ---
 
