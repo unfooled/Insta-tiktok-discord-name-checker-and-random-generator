@@ -142,31 +142,44 @@ class Checker(QThread):
                         if self.debug:
                             self.update.emit(f"[DEBUG] ✓ Username '{username}' found in user data")
                     
-                    # Follower count structure
-                    if re.search(r'"edge_followed_by"[:\s]*{[^}]*"count"[:\s]*\d+', body):
+                    # Follower count structure (new format)
+                    follower_match = re.search(r'"follower_count"[:\s]*(\d+)', body)
+                    if not follower_match:
+                        follower_match = re.search(r'"edge_followed_by"[:\s]*{[^}]*"count"[:\s]*(\d+)', body)
+                    if follower_match:
                         profile_signals['has_follower_count'] = True
                         if self.debug:
-                            match = re.search(r'"edge_followed_by"[:\s]*{[^}]*"count"[:\s]*(\d+)', body)
-                            if match:
-                                self.update.emit(f"[DEBUG] ✓ Found follower count: {match.group(1)}")
-                    
-                    # Following count structure
-                    if re.search(r'"edge_follow"[:\s]*{[^}]*"count"[:\s]*\d+', body):
+                            self.update.emit(f"[DEBUG] ✓ Found follower count: {follower_match.group(1)}")
+
+                    # Following count structure (new format)
+                    if re.search(r'"following_count"[:\s]*\d+', body) or \
+                       re.search(r'"edge_follow"[:\s]*{[^}]*"count"[:\s]*\d+', body):
                         profile_signals['has_following_count'] = True
                         if self.debug:
                             self.update.emit(f"[DEBUG] ✓ Found following count")
-                    
-                    # Post count
-                    if re.search(r'"edge_owner_to_timeline_media"[:\s]*{[^}]*"count"[:\s]*\d+', body):
+
+                    # Post count (new format)
+                    if re.search(r'"media_count"[:\s]*\d+', body) or \
+                       re.search(r'"edge_owner_to_timeline_media"[:\s]*{[^}]*"count"[:\s]*\d+', body):
                         profile_signals['has_post_count'] = True
                         if self.debug:
                             self.update.emit(f"[DEBUG] ✓ Found post count")
                     
                     # Profile picture with actual URL (not default)
-                    if re.search(r'"profile_pic_url"[:\s]*"https://[^"]+scontent[^"]*"', body):
+                    if re.search(r'"profile_pic_url"[:\s]*"https://[^"]+(?:scontent|cdninstagram)[^"]*"', body):
                         profile_signals['has_profile_pic'] = True
                         if self.debug:
                             self.update.emit(f"[DEBUG] ✓ Found profile pic URL")
+
+                    # User ID — also check new "pk" field format
+                    if not user_id_match:
+                        user_id_match = re.search(r'"pk"[:\s]*"?(\d{5,})"?', body)
+                    if user_id_match and not profile_signals['has_real_user_id']:
+                        uid = user_id_match.group(1)
+                        if re.search(rf'"username"[:\s]*"{re.escape(username)}"', body, re.IGNORECASE):
+                            profile_signals['has_real_user_id'] = True
+                            if self.debug:
+                                self.update.emit(f"[DEBUG] ✓ Found REAL user ID (pk) linked to username: {uid}")
                     
                     # Biography with actual content (not empty string)
                     bio_match = re.search(r'"biography"[:\s]*"([^"]+)"', body)
@@ -212,15 +225,28 @@ class Checker(QThread):
                     title_match = re.search(r'<title>([^<]+)</title>', body, re.IGNORECASE)
                     if title_match:
                         title = title_match.group(1)
-                        # Check if it's a real profile title (has @username or posts/followers)
-                        if username.lower() in title.lower() and ('posts' in title.lower() or 'followers' in title.lower() or f'@{username}' in title.lower()):
+                        title_lower = title.lower()
+                        username_lower = username.lower()
+                        # Instagram encodes @ as &#064; in titles
+                        has_username_in_title = (
+                            username_lower in title_lower or
+                            f'&#064;{username_lower}' in title_lower
+                        )
+                        has_profile_indicators = (
+                            'posts' in title_lower or
+                            'followers' in title_lower or
+                            f'@{username_lower}' in title_lower or
+                            f'&#064;{username_lower}' in title_lower or
+                            '• instagram photos and videos' in title_lower
+                        )
+                        if has_username_in_title and has_profile_indicators:
                             username_in_meta = True
                             if self.debug:
                                 self.update.emit(f"[DEBUG] ✓ Username found in profile title: {title}")
                         elif self.debug:
                             self.update.emit(f"[DEBUG] ✗ Title doesn't indicate real profile: {title}")
                     
-                    if username_in_meta and signal_count >= 2:
+                    if username_in_meta and (signal_count >= 1 or profile_signals['has_username_match']):
                         self.update.emit(f"❌ [TAKEN] {username} (profile title + {signal_count} signals)")
                         return
                     
@@ -564,7 +590,7 @@ class App(QMainWindow):
         self.status_label.setStyleSheet("padding: 8px; font-weight: bold; background-color: #c8e6c9; border-radius: 3px;")
 
     def start_clicked(self):
-        sessionid = self.sessionid_input.text().strip()
+        sessionid = ''.join(self.sessionid_input.text().split())  # Remove ALL whitespace incl. hidden \n \r
         if not sessionid:
             QMessageBox.warning(self, "Missing sessionid", "Please enter your Instagram sessionid first!")
             return
